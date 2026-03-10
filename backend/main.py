@@ -812,7 +812,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     role: str = "student"
-    user_id: int = None
+    user_id: Optional[int] = None
 
 class ExportRequest(BaseModel):
     columns: list[str]
@@ -964,6 +964,10 @@ JOIN studenti s ON o.student_id = s.id
 JOIN predmeti p ON o.predmet_id = p.id
 WHERE p.profesor_id = {int(user_id)}
 ORDER BY p.naziv, s.prezime"""
+
+    entity_mentions = sum(1 for pat in [r'student', r'profesor', r'predmet'] if re.search(pat, msg))
+    if entity_mentions >= 2:
+        return None
 
     if re.search(r'(svi|sve|prikaži|spisak|lista)\s*(student|studenata|studente)', msg):
         return "SELECT id, ime, prezime, broj_indeksa, godina_upisa, smer, email FROM studenti ORDER BY prezime"
