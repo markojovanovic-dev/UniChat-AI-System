@@ -1,7 +1,4 @@
-"""
-Univerzitetski AI Chat Asistent - Backend
-FastAPI server sa Ollama LLM integracijom (Qwen 2.5 Coder 14B), MySQL bazom i GPU monitoringom
-"""
+"""UniChat AI - Backend"""
 
 import os
 import re
@@ -40,7 +37,7 @@ metrics = {
     "total_response_time": 0.0,
 }
 
-# ─── Dozvoljeni SQL ključne reči ─────────────────────────────────────────────
+# ─── SQL validacija ──────────────────────────────────────────────────────────
 
 FORBIDDEN_PATTERNS = [
     r'\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|REPLACE|GRANT|REVOKE)\b',
@@ -49,9 +46,8 @@ FORBIDDEN_PATTERNS = [
     r';\s*\w',  # multiple statements
 ]
 
-# ─── Šeme po ulogama — DDL format koji LLM bolje razume ─────────────────────
+# ─── Šeme po ulogama ────────────────────────────────────────────────────────
 
-# Exact table and column names in the database
 VALID_TABLES = {"studenti", "profesori", "predmeti", "ocene", "upisi"}
 VALID_COLUMNS = {
     "studenti": {"id", "ime", "prezime", "broj_indeksa", "godina_upisa", "smer", "email"},
@@ -208,7 +204,6 @@ def get_system_prompt(role: str, user_id: int = None) -> str:
         role_line = "Uloga: ADMIN (potpun pristup)"
         identity = ""
 
-    # Build explicit column reference for the prompt
     col_ref_lines = []
     for table in sorted(ROLE_TABLES.get(role, VALID_TABLES)):
         if table in VALID_COLUMNS:
@@ -313,7 +308,6 @@ ODGOVORI SQL UPITOM ili TEKST: odgovorom:"""
 # ─── Validacija SQL-a ────────────────────────────────────────────────────────
 
 def validate_sql(sql: str) -> tuple[bool, str]:
-    """Stroga validacija SQL upita - dozvoljeni samo SELECT upiti."""
     sql_clean = sql.strip().rstrip(';').strip()
 
     if not sql_clean:
@@ -333,15 +327,11 @@ def validate_sql(sql: str) -> tuple[bool, str]:
 
 
 def validate_schema(sql: str, role: str) -> tuple[bool, str]:
-    """Proverava da li SQL koristi samo postojeće tabele i kolone."""
     sql_upper = sql.upper()
 
-    # Extract table names from FROM, JOIN clauses
-    # Match patterns like: FROM tablename, JOIN tablename, FROM tablename AS alias
     table_pattern = r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)'
     found_tables = set(m.lower() for m in re.findall(table_pattern, sql, re.IGNORECASE))
 
-    # Filter out subquery aliases and SQL keywords
     sql_keywords_lower = {'select', 'where', 'on', 'and', 'or', 'not', 'as', 'in', 'is',
                           'null', 'true', 'false', 'case', 'when', 'then', 'else', 'end'}
     found_tables -= sql_keywords_lower
@@ -356,7 +346,6 @@ def validate_schema(sql: str, role: str) -> tuple[bool, str]:
     if unauthorized_tables:
         return False, f"Nemate pristup tabeli '{', '.join(unauthorized_tables)}' sa ulogom '{role}'."
 
-    # Extract column references — check table.column patterns
     col_pattern = r'([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)'
     prefixed_columns = set()  # track columns already validated via table.column
     for table_ref, col_ref in re.findall(col_pattern, sql):
@@ -364,8 +353,6 @@ def validate_schema(sql: str, role: str) -> tuple[bool, str]:
         col_ref_lower = col_ref.lower()
         prefixed_columns.add(col_ref_lower)
 
-        # table_ref might be an alias — try to find actual table
-        # Look for "actual_table AS alias" or "actual_table alias"
         alias_pattern = rf'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+(?:AS\s+)?{re.escape(table_ref)}\b'
         alias_match = re.search(alias_pattern, sql, re.IGNORECASE)
 
@@ -374,14 +361,12 @@ def validate_schema(sql: str, role: str) -> tuple[bool, str]:
         elif table_ref_lower in VALID_COLUMNS:
             actual_table = table_ref_lower
         else:
-            # It's an alias we can't resolve — skip column check for it
             continue
 
         if actual_table in VALID_COLUMNS and col_ref_lower not in VALID_COLUMNS[actual_table]:
             valid_cols = ', '.join(sorted(VALID_COLUMNS[actual_table]))
             return False, f"Kolona '{col_ref}' ne postoji u tabeli '{actual_table}'. Dostupne kolone: {valid_cols}"
 
-    # Check bare column references (without table prefix) — catches hallucinated names like korisnik_id
     all_valid_columns = set()
     for table in allowed_tables:
         if table in VALID_COLUMNS:
@@ -397,22 +382,18 @@ def validate_schema(sql: str, role: str) -> tuple[bool, str]:
         'ifnull', 'coalesce', 'cast', 'date', 'year', 'month', 'day',
     }
 
-    # Collect table names + aliases
     known_names = {t.lower() for t in VALID_TABLES}
     for m in re.finditer(r'(?:FROM|JOIN)\s+([a-zA-Z_]\w*)(?:\s+(?:AS\s+)?([a-zA-Z_]\w*))?', sql, re.IGNORECASE):
         known_names.add(m.group(1).lower())
         if m.group(2) and m.group(2).lower() not in SQL_KEYWORDS:
             known_names.add(m.group(2).lower())
-    # Column/expression aliases via AS
     for alias in re.findall(r'\bAS\s+([a-zA-Z_]\w*)', sql, re.IGNORECASE):
         known_names.add(alias.lower())
 
-    # All identifiers in the SQL
     all_idents = {w.lower() for w in re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', sql)}
     known_good = SQL_KEYWORDS | known_names | all_valid_columns | prefixed_columns
     unknown = all_idents - known_good
 
-    # Flag unknown snake_case identifiers — these are almost certainly hallucinated column names
     bad_columns = sorted(ident for ident in unknown if '_' in ident)
     if bad_columns:
         return False, f"Kolona '{bad_columns[0]}' ne postoji u bazi. Dostupne kolone: {', '.join(sorted(all_valid_columns))}"
@@ -421,7 +402,6 @@ def validate_schema(sql: str, role: str) -> tuple[bool, str]:
 
 
 def clean_llm_sql(raw: str) -> str:
-    """Čisti LLM output — agresivno izvlači čist SQL iz bilo kakvog formata."""
     if not raw:
         return ""
 
@@ -430,13 +410,10 @@ def clean_llm_sql(raw: str) -> str:
 
     sql = original
 
-    # 1. Remove markdown code blocks — extract content between ```
     if '```' in sql:
-        # Try to find SQL between ``` markers
         import re as _re
         code_blocks = _re.findall(r'```(?:sql|mysql)?\s*\n?(.*?)```', sql, _re.DOTALL | _re.IGNORECASE)
         if code_blocks:
-            # Take the first code block that looks like SQL
             for block in code_blocks:
                 block = block.strip()
                 if block.upper().startswith(('SELECT', 'WITH')):
@@ -445,24 +422,19 @@ def clean_llm_sql(raw: str) -> str:
             else:
                 sql = code_blocks[0].strip()
 
-    # 2. Remove backticks
     sql = sql.strip().strip('`').strip()
 
-    # 3. Remove "sql" prefix
     if sql.lower().startswith("sql\n") or sql.lower().startswith("sql "):
         sql = sql[3:].strip()
 
-    # 4. Find SELECT/WITH in the text — take everything from there
     upper = sql.upper()
     select_idx = upper.find('SELECT')
     with_idx = upper.find('WITH')
 
     if select_idx == -1 and with_idx == -1:
-        # No SQL found at all — return as-is, validation will catch it
         logger.warning(f"No SELECT/WITH found in LLM output")
         return sql
 
-    # Take the earliest SQL keyword
     start_idx = -1
     if select_idx >= 0 and with_idx >= 0:
         start_idx = min(select_idx, with_idx)
@@ -474,10 +446,8 @@ def clean_llm_sql(raw: str) -> str:
     if start_idx > 0:
         sql = sql[start_idx:]
 
-    # 5. Remove trailing semicolons
     sql = sql.rstrip(';').strip()
 
-    # 6. Remove trailing prose — stop at empty line or first non-SQL line
     lines = sql.split('\n')
     sql_lines = []
     sql_starters = {
@@ -491,27 +461,21 @@ def clean_llm_sql(raw: str) -> str:
     for i, line in enumerate(lines):
         stripped = line.strip()
 
-        # Empty line after SQL content = SQL is done, rest is explanation
         if not stripped:
             if sql_lines:
                 break
             continue
 
-        # First line must start with SELECT/WITH
         if i == 0:
             sql_lines.append(line)
             continue
 
-        # Check if this line looks like SQL
         first_word = stripped.split()[0].upper().rstrip('(,')
         is_sql_line = (
             first_word in sql_starters or
             stripped[0] in ('(', ')', ',', "'", '"') or
-            # Indented continuation — column reference like "s.prezime" or "table.col"
             '.' in stripped.split()[0] or
-            # Continuation of previous line (indented column list, subquery, etc.)
             (stripped[0].isdigit() and any(c in stripped for c in ['=', '<', '>', ','])) or
-            # Line starts with known SQL operators
             any(stripped.startswith(c) for c in ['(', ')', ','])
         )
 
@@ -522,7 +486,6 @@ def clean_llm_sql(raw: str) -> str:
 
     result = '\n'.join(sql_lines).strip().rstrip(';').strip()
 
-    # Auto-fix known hallucinated column names
     COLUMN_FIXES = {
         r'\bkorisnik_id\b': 'student_id',
         r'\buser_id\b': 'student_id',
@@ -541,7 +504,6 @@ def clean_llm_sql(raw: str) -> str:
 # ─── GPU Monitoring ──────────────────────────────────────────────────────────
 
 def get_gpu_stats() -> dict:
-    """Prikuplja GPU statistike koristeći nvidia-smi."""
     try:
         result = subprocess.run(
             ['nvidia-smi', '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit,name',
@@ -595,7 +557,6 @@ def init_db():
 
 
 def execute_query(sql: str) -> tuple[list[str], list[list]]:
-    """Izvršava SQL upit i vraća kolone i redove."""
     if engine is None:
         raise ConnectionError("MySQL baza nije dostupna. Pokrenite MySQL i seedujte bazu sa: sudo mysql < backend/seed.sql")
 
@@ -610,7 +571,6 @@ def execute_query(sql: str) -> tuple[list[str], list[list]]:
 # ─── Ollama LLM ─────────────────────────────────────────────────────────────
 
 async def query_ollama(prompt: str, system_prompt: str) -> str:
-    """Šalje upit Ollama serveru koristeći /api/chat."""
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
@@ -653,11 +613,9 @@ async def query_ollama(prompt: str, system_prompt: str) -> str:
 EXPORT_DIR = "/tmp/exports"
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
-# Proveravamo dostupnost export biblioteka jednom pri pokretanju
 EXPORT_AVAILABLE = {}
 
 def check_export_availability():
-    """Proverava koje export biblioteke su instalirane."""
     global EXPORT_AVAILABLE
     try:
         import openpyxl
@@ -854,15 +812,15 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     role: str = "student"
-    user_id: int = None  # ID studenta ili profesora
+    user_id: int = None
 
 class ExportRequest(BaseModel):
     columns: list[str]
     rows: list[list]
-    format: str  # xlsx, pdf, docx
+    format: str
 
 
-# ─── Podaci o korisnicima (mock) ─────────────────────────────────────────────
+# ─── Podaci o korisnicima ────────────────────────────────────────────────────
 
 MOCK_STUDENTS = [
     {"id": 1, "label": "Marko Jovanović (2023/0001)", "ime": "Marko", "prezime": "Jovanović", "broj_indeksa": "2023/0001"},
@@ -920,7 +878,6 @@ async def get_metrics():
 
 @app.get("/api/export/formats")
 async def get_export_formats():
-    """Vraća listu dostupnih export formata sa labelama na srpskom."""
     formats = []
     if EXPORT_AVAILABLE.get("xlsx"):
         formats.append({"id": "xlsx", "label": "Excel (.xlsx)", "color": "#22c55e", "icon": "table"})
@@ -933,60 +890,49 @@ async def get_export_formats():
 
 @app.get("/api/users")
 async def get_users():
-    """Vraća listu studenata i profesora za izbor identiteta."""
     return {
         "students": MOCK_STUDENTS,
         "professors": MOCK_PROFESSORS,
     }
 
 
-# ─── SQL šabloni za česte upite — zaobilazi LLM za pouzdanost ───────────────
+# ─── SQL šabloni ────────────────────────────────────────────────────────────
 
 def match_template(message: str, role: str, user_id: int = None) -> str | None:
-    """Pokušava da prepozna čest upit i vrati pouzdan SQL bez LLM-a."""
     msg = message.lower().strip()
 
-    # Student-specific queries (require user_id)
     if user_id and role == "student":
-        # Moje ocene / prikaži moje ocene
         if re.search(r'\bmoj[aei]?\s+ocen[aei]', msg) or re.search(r'\bocen[aei]\b.*\bmoj', msg):
             return f"""SELECT p.naziv, o.ocena, o.datum_polaganja, o.semestar
 FROM ocene o JOIN predmeti p ON o.predmet_id = p.id
 WHERE o.student_id = {int(user_id)}
 ORDER BY o.datum_polaganja DESC"""
 
-        # Moj prosek / moja prosečna ocena
         if re.search(r'\bmoj\w*\s+(pros[eč]|prosecn)', msg) or re.search(r'pros[eč].*\bmoj', msg):
             return f"""SELECT ROUND(AVG(o.ocena), 2) AS prosek, COUNT(*) AS broj_ocena
 FROM ocene o
 WHERE o.student_id = {int(user_id)}"""
 
-        # Moji predmeti / moji upisi
         if re.search(r'\bmoj[aei]?\s+(predmet|upis)', msg):
             return f"""SELECT p.naziv, p.sifra, p.ects, u.akademska_godina, u.status
 FROM upisi u JOIN predmeti p ON u.predmet_id = p.id
 WHERE u.student_id = {int(user_id)}
 ORDER BY u.akademska_godina DESC, p.naziv"""
 
-        # Koje sam predmete položio
         if re.search(r'polož', msg) and re.search(r'\bmoj|sam\b', msg):
             return f"""SELECT p.naziv, o.ocena, o.datum_polaganja
 FROM ocene o JOIN predmeti p ON o.predmet_id = p.id
 WHERE o.student_id = {int(user_id)} AND o.ocena >= 6
 ORDER BY o.datum_polaganja DESC"""
 
-    # Professor-specific queries
     if user_id and role == "profesor":
-        # Moji predmeti (simple list)
         if re.search(r'\bmoj[aei]?\s+predmet', msg) and not re.search(r'ocen|pros[eč]|student', msg):
             return f"""SELECT p.naziv, p.sifra, p.ects, p.semestar
 FROM predmeti p
 WHERE p.profesor_id = {int(user_id)}
 ORDER BY p.semestar"""
 
-        # Prosek/prosečna ocena on my subjects — MUST come before raw ocene template
         if re.search(r'pros[eč]|prosecn', msg) and re.search(r'\bmoj|predmet', msg):
-            # Per-student average: "prosek studenata", "ko ima najmanju/najvecu prosecnu"
             if re.search(r'student|ko\s+ima|najmanj|najvec|najbol|najgor', msg):
                 order = "ASC" if re.search(r'najmanj|najgor', msg) else "DESC"
                 return f"""SELECT s.ime, s.prezime, s.broj_indeksa, p.naziv AS predmet, ROUND(AVG(o.ocena), 2) AS prosek
@@ -996,7 +942,6 @@ JOIN predmeti p ON o.predmet_id = p.id
 WHERE p.profesor_id = {int(user_id)}
 GROUP BY s.id, s.ime, s.prezime, s.broj_indeksa, p.id, p.naziv
 ORDER BY prosek {order}"""
-            # Per-subject average: "prosečna ocena po predmetu", "prosek na mojim predmetima"
             return f"""SELECT p.naziv, ROUND(AVG(o.ocena), 2) AS prosecna_ocena, COUNT(*) AS broj_ocena
 FROM ocene o
 JOIN predmeti p ON o.predmet_id = p.id
@@ -1004,7 +949,6 @@ WHERE p.profesor_id = {int(user_id)}
 GROUP BY p.id, p.naziv
 ORDER BY prosecna_ocena DESC"""
 
-        # Koji studenti su na mom predmetu / studenti na mojim predmetima
         if re.search(r'student', msg) and re.search(r'\bmoj|predmet', msg):
             return f"""SELECT DISTINCT s.ime, s.prezime, s.broj_indeksa, s.smer, p.naziv AS predmet
 FROM upisi u
@@ -1013,7 +957,6 @@ JOIN predmeti p ON u.predmet_id = p.id
 WHERE p.profesor_id = {int(user_id)}
 ORDER BY p.naziv, s.prezime"""
 
-        # Ocene na mojim predmetima / ocene mojih studenata (raw grade list — last resort)
         if re.search(r'ocen', msg) and re.search(r'\bmoj', msg):
             return f"""SELECT s.ime, s.prezime, p.naziv, o.ocena, o.datum_polaganja
 FROM ocene o
@@ -1022,27 +965,20 @@ JOIN predmeti p ON o.predmet_id = p.id
 WHERE p.profesor_id = {int(user_id)}
 ORDER BY p.naziv, s.prezime"""
 
-    # General queries (any role)
-
-    # Svi studenti
     if re.search(r'(svi|sve|prikaži|spisak|lista)\s*(student|studenata|studente)', msg):
         return "SELECT id, ime, prezime, broj_indeksa, godina_upisa, smer, email FROM studenti ORDER BY prezime"
 
-    # Svi profesori
     if re.search(r'(svi|sve|prikaži|spisak|lista)\s*(profesor|profesora|profesore)', msg):
         return "SELECT id, ime, prezime, titula, email, kabinet FROM profesori ORDER BY prezime"
 
-    # Svi predmeti
     if re.search(r'(svi|sve|prikaži|spisak|lista)\s*(predmet|predmeta|predmete)', msg):
         return "SELECT id, naziv, sifra, ects, semestar FROM predmeti ORDER BY semestar, naziv"
 
-    # Prosečna ocena po predmetu
     if re.search(r'pros[eč].*ocen.*predmet|predmet.*pros[eč].*ocen', msg):
         return """SELECT p.naziv, ROUND(AVG(o.ocena), 2) AS prosecna_ocena, COUNT(*) AS broj_ocena
 FROM ocene o JOIN predmeti p ON o.predmet_id = p.id
 GROUP BY p.id, p.naziv ORDER BY prosecna_ocena DESC"""
 
-    # Top studenti po proseku
     if re.search(r'top|najbolj', msg) and re.search(r'student|prosek', msg):
         limit = 10
         m = re.search(r'top\s*(\d+)', msg)
@@ -1053,7 +989,6 @@ FROM ocene o JOIN studenti s ON o.student_id = s.id
 GROUP BY s.id, s.ime, s.prezime, s.broj_indeksa
 ORDER BY prosek DESC LIMIT {limit}"""
 
-    # Studenti po smeru
     if re.search(r'(broj|koliko)\s*(student|studenata).*smer|smer.*student', msg):
         return "SELECT smer, COUNT(*) AS broj_studenata FROM studenti GROUP BY smer ORDER BY broj_studenata DESC"
 
@@ -1080,14 +1015,12 @@ async def chat(request: ChatRequest):
     try:
         add_step("Primam upit...", "completed")
 
-        # Try template matching first — instant and reliable
         template_sql = match_template(request.message, request.role, request.user_id)
         if template_sql:
             add_step("Prepoznat upit (šablon)...", "completed")
             sql = template_sql
             logger.info(f"Template match: {sql[:100]}")
         else:
-            # LLM path — generate SQL via Ollama
             add_step("Generišem SQL...", "active")
 
             system_prompt = get_system_prompt(request.role, request.user_id)
@@ -1106,10 +1039,8 @@ async def chat(request: ChatRequest):
                     "export_formats": [],
                 }
 
-            # Check if LLM returned a text response (not SQL)
             raw_response = sql.strip()
             if raw_response.upper().startswith("TEKST:") or raw_response.upper().startswith("GREŠKA:") or raw_response.upper().startswith("GRESKA:"):
-                # Strip the prefix (TEKST:, GREŠKA:, GRESKA:)
                 colon_idx = raw_response.index(':')
                 text_response = raw_response[colon_idx + 1:].strip()
                 steps[-1]["status"] = "completed"
@@ -1132,12 +1063,10 @@ async def chat(request: ChatRequest):
             sql = clean_llm_sql(sql)
             steps[-1]["status"] = "completed"
 
-            # Validate SQL syntax
             add_step("Validacija upita...", "active")
             is_valid, validation_msg = validate_sql(sql)
 
             if not is_valid:
-                # Retry — the LLM probably returned prose instead of SQL
                 logger.warning(f"SQL validacija neuspešna: {validation_msg}. LLM output: {sql[:200]}. Pokušavam ponovo...")
                 retry_prompt = f"""Odgovori ISKLJUČIVO sa jednim SQL SELECT upitom. NIŠTA DRUGO — samo SQL.
 Bez teksta pre, bez teksta posle, bez objašnjenja, bez markdown.
@@ -1156,7 +1085,6 @@ SQL:"""
                         logger.info("SQL retry uspešan")
 
             if not is_valid:
-                # If LLM returned conversational text (no SQL found), show it as text
                 if validation_msg == "Prazan SQL upit." or (not sql.strip().upper().startswith("SELECT") and not sql.strip().upper().startswith("WITH")):
                     text = raw_response if raw_response and not raw_response.strip().upper().startswith("SELECT") else sql
                     steps[-1]["status"] = "completed"
@@ -1188,13 +1116,10 @@ SQL:"""
                     "export_formats": [],
                 }
 
-            # Validate schema — check table/column names against real schema
             schema_valid, schema_msg = validate_schema(sql, request.role)
 
             if not schema_valid:
-                # Retry once — tell the LLM what went wrong
                 logger.warning(f"Schema greška: {schema_msg}. Pokušavam ponovo...")
-                # Build column reference for retry
                 allowed = ROLE_TABLES.get(request.role, VALID_TABLES)
                 col_lines = []
                 for t in sorted(allowed):
@@ -1264,7 +1189,6 @@ Odgovori SAMO SQL upitom. Koristi SAMO kolone iz spiska iznad."""
         metrics["successful_queries"] += 1
         metrics["total_response_time"] += elapsed
 
-        # Build export formats list based on what's actually available
         export_formats = []
         if EXPORT_AVAILABLE.get("xlsx"):
             export_formats.append({"id": "xlsx", "label": "Excel", "color": "#22c55e"})

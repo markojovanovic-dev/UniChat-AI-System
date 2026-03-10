@@ -298,7 +298,7 @@ function ChatMessage({ message, onExport }) {
                 </div>
               )}
 
-              {/* Export buttons — only rendered if backend says formats are available */}
+              {/* Export */}
               {message.export_formats && message.export_formats.length > 0 && message.rows && message.rows.length > 0 && (
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {message.export_formats.map((fmt) => (
@@ -415,7 +415,7 @@ function Sidebar({ role, onRoleChange, metrics, onSuggestionClick, userId, onUse
         </div>
       </div>
 
-      {/* User identity selector — only for student/profesor */}
+      {/* User selector */}
       {role !== "admin" && (
         <div style={{ padding: "8px 18px 16px" }}>
           <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.1em", marginBottom: "8px" }}>
@@ -514,7 +514,6 @@ export default function App() {
   const [metrics, setMetrics] = useState({ total_queries: 0, avg_response_time: 0, success_rate: 100 });
   const chatEndRef = useRef(null);
 
-  // Fetch users list on mount
   useEffect(() => {
     (async () => {
       try {
@@ -527,7 +526,7 @@ export default function App() {
   const handleRoleChange = useCallback((newRole) => {
     if (newRole === role) return;
     setRole(newRole);
-    setUserId(null); // Reset user when switching roles
+    setUserId(null);
     setCurrentSteps([]);
     const labels = { student: "Student", profesor: "Profesor", admin: "Admin" };
     const descs = {
@@ -555,13 +554,11 @@ export default function App() {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isLoading]);
 
-  // GPU polling
   useEffect(() => {
     const f = async () => { try { const r = await fetch(`${API_URL}/api/gpu`); if (r.ok) setGpuData(await r.json()); } catch {} };
     f(); const iv = setInterval(f, 3000); return () => clearInterval(iv);
   }, []);
 
-  // Metrics polling
   useEffect(() => {
     const f = async () => { try { const r = await fetch(`${API_URL}/api/metrics`); if (r.ok) setMetrics(await r.json()); } catch {} };
     const iv = setInterval(f, 5000); return () => clearInterval(iv);
