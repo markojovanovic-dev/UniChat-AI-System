@@ -489,3 +489,8 @@ Relacije:
 | Izvoz DOCX | python-docx | 1.1+ |
 | GPU Monitoring | nvidia-smi | — |
 | HTTP klijent | httpx | 0.27+ |
+
+
+---
+
+**Copyright (c) 2025 Marko Jovanovic. All rights reserved.**
