@@ -493,4 +493,4 @@ Relacije:
 
 ---
 
-**Copyright (c) 2025 Marko Jovanovic. All rights reserved.**
+**Copyright (c) 2026 Marko Jovanovic. All rights reserved.**
