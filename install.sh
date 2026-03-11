@@ -28,7 +28,7 @@ echo "═══ [2/7] Node.js ═══"
 install_node() {
     echo "  → Instaliram Node.js..."
     # Download setup script to file first (piping to bash can break)
-    if curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/nodesource_setup.sh 2>/dev/null; then
+    if curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/nodesource_setup.sh 2>/dev/null; then
         sudo bash /tmp/nodesource_setup.sh
         sudo apt install -y nodejs
         rm -f /tmp/nodesource_setup.sh
@@ -41,10 +41,10 @@ install_node() {
 
 if command -v node &>/dev/null; then
     NODE_VER=$(node --version | sed 's/v//' | cut -d. -f1)
-    if [ "$NODE_VER" -ge 18 ] 2>/dev/null; then
+    if [ "$NODE_VER" -ge 22 ] 2>/dev/null; then
         echo "  ✓ Node.js pronađen: $(node --version)"
     else
-        echo "  ⚠ Node.js verzija prestara (v$NODE_VER), treba 18+"
+        echo "  ⚠ Node.js verzija prestara (v$NODE_VER), treba 22+"
         install_node
         echo "  ✓ Node.js ažuriran: $(node --version)"
     fi
@@ -64,7 +64,7 @@ if ! command -v npm &>/dev/null; then
     echo "  ✗ GREŠKA: npm se nije instalirao."
     echo "    Ručno instalirajte Node.js sa: https://nodejs.org"
     echo "    ili pokrenite:"
-    echo "      curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/ns.sh"
+    echo "      curl -fsSL https://deb.nodesource.com/setup_24.x -o /tmp/ns.sh"
     echo "      sudo bash /tmp/ns.sh"
     echo "      sudo apt install -y nodejs"
     exit 1

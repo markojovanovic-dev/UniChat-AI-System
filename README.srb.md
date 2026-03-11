@@ -126,7 +126,7 @@ Korisnik kuca: "Prikaži sve studente"
 | **Disk prostor** | 14 GB slobodno | 20 GB+ slobodno |
 | **Procesor** | Bilo koji x86_64 | 4+ jezgara |
 | **Python** | 3.10+ | 3.12+ |
-| **Node.js** | 18+ | 22 LTS |
+| **Node.js** | 22+ | 24 LTS |
 
 ### Detalji o disk prostoru
 
@@ -224,7 +224,7 @@ chmod +x install.sh start.sh
 Ova jedna komanda radi sve:
 
 1. Proverava i instalira **Python 3** ako fali
-2. Proverava i instalira **Node.js 22** ako fali ili je prestar
+2. Proverava i instalira **Node.js 24** ako fali ili je prestar
 3. Proverava i instalira **MySQL 8** ako fali, pokreće servis
 4. Kreira **uni_db** bazu i popunjava srpskim univerzitetskim podacima
 5. Kreira **read-only** MySQL korisnika (`uni_reader`)
@@ -462,7 +462,7 @@ Relacije:
 |---------|-------|--------|
 | "Ollama server nije dostupan" | Ollama servis nije pokrenut | `ollama serve` |
 | "MySQL baza nije dostupna" | MySQL servis nije pokrenut | `sudo systemctl start mysql` |
-| `npm: command not found` | Node.js nije instaliran | `./install.sh` (ili ručno: NodeSource setup) |
+| `npm: command not found` | Node.js nije instaliran | `./install.sh` (ili ručno: [NodeSource setup](https://deb.nodesource.com/setup_24.x)) |
 | `ollama: command not found` | Ollama nije instaliran | `curl -fsSL https://ollama.com/install.sh \| sh` |
 | Pogrešno ime modela | Model registrovan pod drugim imenom | `ollama list` pa `export OLLAMA_MODEL="ime"` |
 | "Greška pri komunikaciji sa serverom" | Backend nije pokrenut | `cd backend && python3 main.py` |

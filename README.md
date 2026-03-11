@@ -126,7 +126,7 @@ User types: "Prikaži sve studente"
 | **Disk Space** | 14 GB free | 20 GB+ free |
 | **CPU** | Any x86_64 | 4+ cores |
 | **Python** | 3.10+ | 3.12+ |
-| **Node.js** | 18+ | 22 LTS |
+| **Node.js** | 22+ | 24 LTS |
 
 ### Disk Space Breakdown
 
@@ -224,7 +224,7 @@ chmod +x install.sh start.sh
 This single command does everything:
 
 1. Checks and installs **Python 3** if missing
-2. Checks and installs **Node.js 22** if missing or too old
+2. Checks and installs **Node.js 24** if missing or too old
 3. Checks and installs **MySQL 8** if missing, starts the service
 4. Creates the **uni_db** database and populates it with Serbian university data
 5. Creates the **read-only** MySQL user (`uni_reader`)
@@ -462,7 +462,7 @@ Relationships:
 |---------|-------|----------|
 | "Ollama server nije dostupan" | Ollama service not running | `ollama serve` |
 | "MySQL baza nije dostupna" | MySQL service not running | `sudo systemctl start mysql` |
-| `npm: command not found` | Node.js not installed | `./install.sh` (or manually: NodeSource setup) |
+| `npm: command not found` | Node.js not installed | `./install.sh` (or manually: [NodeSource setup](https://deb.nodesource.com/setup_24.x)) |
 | `ollama: command not found` | Ollama not installed | `curl -fsSL https://ollama.com/install.sh \| sh` |
 | Wrong model name | Model registered under different name | `ollama list` then `export OLLAMA_MODEL="name"` |
 | "Greška pri komunikaciji sa serverom" | Backend not running | `cd backend && python3 main.py` |
