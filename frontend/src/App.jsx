@@ -261,8 +261,8 @@ function ChatMessage({ message, onExport }) {
                 </div>
               )}
 
-              {/* Results table */}
-              {message.columns && message.rows && message.rows.length > 0 && (
+              {/* Results table (single) */}
+              {message.columns && message.rows && message.rows.length > 0 && !message.multi_results && (
                 <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid var(--border)", marginBottom: "10px" }}>
                   <div style={{ overflowX: "auto", maxHeight: "320px", overflowY: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -298,8 +298,50 @@ function ChatMessage({ message, onExport }) {
                 </div>
               )}
 
+              {/* Results tables (multi) */}
+              {message.multi_results && message.multi_results.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "10px" }}>
+                  {message.multi_results.map((result, ti) => (
+                    <div key={ti} style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid var(--border)" }}>
+                      <div style={{
+                        padding: "8px 14px", background: "#131d2f", borderBottom: "1px solid var(--border)",
+                        fontSize: "12px", fontWeight: 600, color: "var(--accent)", letterSpacing: "0.04em",
+                      }}>
+                        {result.label} ({result.row_count})
+                      </div>
+                      <div style={{ overflowX: "auto", maxHeight: "280px", overflowY: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", fontFamily: "'JetBrains Mono', monospace" }}>
+                          <thead>
+                            <tr>
+                              {result.columns.map((col, i) => (
+                                <th key={i} style={{
+                                  padding: "10px 14px", background: "#0f1923", textAlign: "left",
+                                  fontWeight: 600, fontSize: "11px", letterSpacing: "0.04em", color: "var(--accent)",
+                                  borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 2,
+                                }}>{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {result.rows.slice(0, 50).map((row, ri) => (
+                              <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)" }}>
+                                {row.map((cell, ci) => (
+                                  <td key={ci} style={{ padding: "8px 14px", borderBottom: "1px solid rgba(255,255,255,0.03)", color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+                                    {cell !== null && cell !== undefined ? String(cell) : "—"}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Export */}
-              {message.export_formats && message.export_formats.length > 0 && message.rows && message.rows.length > 0 && (
+              {message.export_formats && message.export_formats.length > 0 && (message.rows?.length > 0 || message.multi_results?.length > 0) && (
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {message.export_formats.map((fmt) => (
                     <button
@@ -594,6 +636,7 @@ export default function App() {
           row_count: data.row_count, response_time: data.response_time,
           export_formats: data.export_formats || [],
           text_response: data.text_response || null,
+          multi_results: data.multi_results || null,
         }]);
       } else {
         setMessages(prev => [...prev, {

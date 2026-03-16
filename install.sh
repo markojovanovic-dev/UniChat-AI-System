@@ -128,13 +128,13 @@ echo "  ✓ Ollama servis aktivan"
 echo ""
 
 # ─── 6. LLM Model ───────────────────────────────────────
-echo "═══ [6/7] LLM Model (Qwen 2.5 Coder 14B) ═══"
+echo "═══ [6/7] LLM Model (Qwen 3 Coder 30B-A3B) ═══"
 
 if ollama list 2>/dev/null | grep -q "uni-chat-qwen"; then
     echo "  ✓ Model uni-chat-qwen već postoji u Ollama"
 else
-    echo "  → Preuzimam qwen2.5-coder:14b (~9 GB)..."
-    ollama pull qwen2.5-coder:14b
+    echo "  → Preuzimam qwen3-coder:30b-a3b-q4_K_M (~18 GB)..."
+    ollama pull qwen3-coder:30b-a3b-q4_K_M
     echo "  → Kreiram uni-chat-qwen model..."
     cd "$PROJECT_DIR"
     ollama create uni-chat-qwen -f Modelfile

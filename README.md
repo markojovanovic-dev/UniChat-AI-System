@@ -4,7 +4,7 @@
 
 ## What This Is
 
-A full-stack web application where a locally-running AI model (Qwen 2.5 Coder 14B) reads a MySQL university database and answers questions about it in Serbian. You type a question in Serbian, the AI generates a SQL query, executes it against real data in the database, and shows you the results — complete with a live GPU dashboard, step-by-step inference visualization, role-based access control, and data export to Excel/PDF/Word.
+A full-stack web application where a locally-running AI model (Qwen 3 Coder 30B-A3B) reads a MySQL university database and answers questions about it in Serbian. You type a question in Serbian, the AI generates a SQL query, executes it against real data in the database, and shows you the results — complete with a live GPU dashboard, step-by-step inference visualization, role-based access control, and data export to Excel/PDF/Word.
 
 The AI model runs entirely on your local machine using your NVIDIA GPU. No cloud APIs, no internet required after setup.
 
@@ -58,12 +58,12 @@ The AI model runs entirely on your local machine using your NVIDIA GPU. No cloud
 │    OLLAMA SERVER          │         │          MySQL 8              │
 │    (Port 11434)           │         │         (Port 3306)           │
 │                           │         │                               │
-│  Qwen 2.5 Coder 14B      │         │  uni_db database:             │
-│  (~9 GB, local GPU)       │         │  ├── studenti  (20 records)   │
+│  Qwen 3 Coder 30B-A3B       │         │  uni_db database:             │
+│  (~18 GB, local GPU)         │         │  ├── studenti  (20 records)   │
 │                           │         │  ├── profesori (4 records)    │
 │  ┌─────────────────────┐  │         │  ├── predmeti  (10 records)   │
 │  │   NVIDIA GPU         │  │         │  ├── ocene     (~50 records)  │
-│  │   8 GB+ VRAM         │  │         │  └── upisi     (~60 records)  │
+│  │   16 GB+ VRAM        │  │         │  └── upisi     (~60 records)  │
 │  └─────────────────────┘  │         │                               │
 └──────────────────────────┘         └──────────────────────────────┘
 ```
@@ -120,10 +120,10 @@ User types: "Prikaži sve studente"
 | Requirement | Minimum | Recommended |
 |-------------|---------|-------------|
 | **Operating System** | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
-| **NVIDIA GPU** | 8 GB VRAM | 12 GB+ VRAM |
+| **NVIDIA GPU** | 16 GB VRAM | 16 GB+ VRAM |
 | **NVIDIA Driver** | 525+ | Latest |
 | **RAM** | 16 GB | 32 GB |
-| **Disk Space** | 14 GB free | 20 GB+ free |
+| **Disk Space** | 25 GB free | 30 GB+ free |
 | **CPU** | Any x86_64 | 4+ cores |
 | **Python** | 3.10+ | 3.12+ |
 | **Node.js** | 22+ | 24 LTS |
@@ -132,24 +132,23 @@ User types: "Prikaži sve studente"
 
 | Component | Size |
 |-----------|------|
-| Qwen 2.5 Coder 14B model | ~9 GB |
+| Qwen 3 Coder 30B-A3B model | ~18 GB |
 | Python dependencies | ~200 MB |
 | Node.js dependencies | ~150 MB |
 | MySQL database (uni_db) | ~1 MB |
 | Ollama runtime | ~500 MB |
-| **Total** | **~10 GB** |
+| **Total** | **~19 GB** |
 
 ### Tested GPU Configurations
 
 | GPU | VRAM | Status |
 |-----|------|--------|
-| RTX 4090 | 24 GB | Excellent — fast responses (~2-5s) |
-| RTX 3080 | 10 GB | Good — solid performance (~5-10s) |
-| RTX 3060 | 12 GB | Good — solid performance (~5-10s) |
-| RTX 2080 | 8 GB | Works — slower responses (~10-20s) |
-| GTX 1080 Ti | 11 GB | Works — slower responses (~15-25s) |
+| RTX 5090 | 32 GB | Excellent — fast responses (~2-4s) |
+| RTX 5080 | 16 GB | Great — ~2 GB RAM spillover, minimal penalty (~3-6s) |
+| RTX 4090 | 24 GB | Excellent — fits fully in VRAM (~2-5s) |
+| RTX 4080 | 16 GB | Good — ~2 GB RAM spillover (~4-8s) |
 
-> **Note:** The model uses ~8.5 GB VRAM. GPUs with exactly 8 GB can run it but will be at the limit and may use RAM spillover (slower).
+> **Note:** The model uses ~18 GB at Q4. On a 16 GB GPU, ~2 GB spills to system RAM — fast DDR5 minimizes the penalty.
 
 
 ## Project Structure
@@ -229,11 +228,11 @@ This single command does everything:
 4. Creates the **uni_db** database and populates it with Serbian university data
 5. Creates the **read-only** MySQL user (`uni_reader`)
 6. Checks and installs **Ollama** if missing, starts the service
-7. Downloads **Qwen 2.5 Coder 14B** model (~9 GB) and registers it as `uni-chat-qwen`
+7. Downloads **Qwen 3 Coder 30B-A3B** model (~18 GB) and registers it as `uni-chat-qwen`
 8. Installs Python backend dependencies (`pip install`)
 9. Installs Node.js frontend dependencies (`npm install`)
 
-> **Note:** Downloading the model (~9 GB) may take 5-30 minutes depending on your internet speed.
+> **Note:** Downloading the model (~18 GB) may take 5-30 minutes depending on your internet speed.
 
 
 ### Step 3: Start the Application
@@ -482,7 +481,7 @@ Relationships:
 | Styling | CSS-in-JS, JetBrains Mono + Outfit fonts | — |
 | Backend | Python FastAPI, Uvicorn | 3.12, 0.100+ |
 | Database | MySQL, SQLAlchemy | 8, 2.0 |
-| AI Model | Qwen 2.5 Coder | 14B parameters |
+| AI Model | Qwen 3 Coder | 30B parameters (3.3B active) |
 | Model Server | Ollama | latest |
 | Export XLSX | openpyxl | 3.1+ |
 | Export PDF | reportlab | 4.0+ |

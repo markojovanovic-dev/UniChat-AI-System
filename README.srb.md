@@ -4,7 +4,7 @@
 
 ## Šta je ovo
 
-Full-stack veb aplikacija gde lokalni AI model (Qwen 2.5 Coder 14B) čita MySQL univerzitetsku bazu podataka i odgovara na pitanja o njoj na srpskom jeziku. Kucate pitanje na srpskom, AI generiše SQL upit, izvršava ga nad pravim podacima u bazi i prikazuje rezultate — sa GPU dashboard-om u realnom vremenu, vizualizacijom koraka inferencije, kontrolom pristupa po ulogama i izvozom u Excel/PDF/Word.
+Full-stack veb aplikacija gde lokalni AI model (Qwen 3 Coder 30B-A3B) čita MySQL univerzitetsku bazu podataka i odgovara na pitanja o njoj na srpskom jeziku. Kucate pitanje na srpskom, AI generiše SQL upit, izvršava ga nad pravim podacima u bazi i prikazuje rezultate — sa GPU dashboard-om u realnom vremenu, vizualizacijom koraka inferencije, kontrolom pristupa po ulogama i izvozom u Excel/PDF/Word.
 
 AI model radi isključivo na vašoj lokalnoj mašini koristeći NVIDIA GPU. Nema cloud API-ja, nije potreban internet posle instalacije.
 
@@ -58,12 +58,12 @@ AI model radi isključivo na vašoj lokalnoj mašini koristeći NVIDIA GPU. Nema
 │    OLLAMA SERVER          │         │          MySQL 8              │
 │    (Port 11434)           │         │         (Port 3306)           │
 │                           │         │                               │
-│  Qwen 2.5 Coder 14B      │         │  uni_db baza:                 │
-│  (~9 GB, lokalni GPU)     │         │  ├── studenti  (20 zapisa)    │
+│  Qwen 3 Coder 30B-A3B      │         │  uni_db baza:                 │
+│  (~18 GB, lokalni GPU)       │         │  ├── studenti  (20 zapisa)    │
 │                           │         │  ├── profesori (4 zapisa)     │
 │  ┌─────────────────────┐  │         │  ├── predmeti  (10 zapisa)    │
 │  │   NVIDIA GPU         │  │         │  ├── ocene     (~50 zapisa)   │
-│  │   8 GB+ VRAM         │  │         │  └── upisi     (~60 zapisa)   │
+│  │   16 GB+ VRAM        │  │         │  └── upisi     (~60 zapisa)   │
 │  └─────────────────────┘  │         │                               │
 └──────────────────────────┘         └──────────────────────────────┘
 ```
@@ -120,10 +120,10 @@ Korisnik kuca: "Prikaži sve studente"
 | Zahtev | Minimum | Preporučeno |
 |--------|---------|-------------|
 | **Operativni sistem** | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
-| **NVIDIA GPU** | 8 GB VRAM | 12 GB+ VRAM |
+| **NVIDIA GPU** | 16 GB VRAM | 16 GB+ VRAM |
 | **NVIDIA drajver** | 525+ | Najnoviji |
 | **RAM** | 16 GB | 32 GB |
-| **Disk prostor** | 14 GB slobodno | 20 GB+ slobodno |
+| **Disk prostor** | 25 GB slobodno | 30 GB+ slobodno |
 | **Procesor** | Bilo koji x86_64 | 4+ jezgara |
 | **Python** | 3.10+ | 3.12+ |
 | **Node.js** | 22+ | 24 LTS |
@@ -132,24 +132,23 @@ Korisnik kuca: "Prikaži sve studente"
 
 | Komponenta | Veličina |
 |------------|----------|
-| Qwen 2.5 Coder 14B model | ~9 GB |
+| Qwen 3 Coder 30B-A3B model | ~18 GB |
 | Python zavisnosti | ~200 MB |
 | Node.js zavisnosti | ~150 MB |
 | MySQL baza (uni_db) | ~1 MB |
 | Ollama runtime | ~500 MB |
-| **Ukupno** | **~10 GB** |
+| **Ukupno** | **~19 GB** |
 
 ### Testirane GPU konfiguracije
 
 | GPU | VRAM | Status |
 |-----|------|--------|
-| RTX 4090 | 24 GB | Odlično — brz odgovor (~2-5s) |
-| RTX 3080 | 10 GB | Dobro — solidne performanse (~5-10s) |
-| RTX 3060 | 12 GB | Dobro — solidne performanse (~5-10s) |
-| RTX 2080 | 8 GB | Radi — sporiji odgovor (~10-20s) |
-| GTX 1080 Ti | 11 GB | Radi — sporiji odgovor (~15-25s) |
+| RTX 5090 | 32 GB | Odlično — brz odgovor (~2-4s) |
+| RTX 5080 | 16 GB | Odlično — ~2 GB RAM spillover, minimalno usporenje (~3-6s) |
+| RTX 4090 | 24 GB | Odlično — staje ceo u VRAM (~2-5s) |
+| RTX 4080 | 16 GB | Dobro — ~2 GB RAM spillover (~4-8s) |
 
-> **Napomena:** Model koristi ~8.5 GB VRAM-a. GPU sa tačno 8 GB može raditi, ali će biti na granici i koristiće RAM spillover (sporije).
+> **Napomena:** Model koristi ~18 GB pri Q4 kvantizaciji. Na GPU sa 16 GB, ~2 GB prelazi na sistemski RAM — brz DDR5 minimizuje usporenje.
 
 
 ## Struktura projekta
@@ -229,11 +228,11 @@ Ova jedna komanda radi sve:
 4. Kreira **uni_db** bazu i popunjava srpskim univerzitetskim podacima
 5. Kreira **read-only** MySQL korisnika (`uni_reader`)
 6. Proverava i instalira **Ollama** ako fali, pokreće servis
-7. Preuzima **Qwen 2.5 Coder 14B** model (~9 GB) i registruje kao `uni-chat-qwen`
+7. Preuzima **Qwen 3 Coder 30B-A3B** model (~18 GB) i registruje kao `uni-chat-qwen`
 8. Instalira Python backend zavisnosti (`pip install`)
 9. Instalira Node.js frontend zavisnosti (`npm install`)
 
-> **Napomena:** Preuzimanje modela (~9 GB) može potrajati 5-30 minuta u zavisnosti od brzine interneta.
+> **Napomena:** Preuzimanje modela (~18 GB) može potrajati 5-30 minuta u zavisnosti od brzine interneta.
 
 
 ### Korak 3: Pokrenite aplikaciju
@@ -482,7 +481,7 @@ Relacije:
 | Stilovi | CSS-in-JS, JetBrains Mono + Outfit fontovi | — |
 | Backend | Python FastAPI, Uvicorn | 3.12, 0.100+ |
 | Baza | MySQL, SQLAlchemy | 8, 2.0 |
-| AI Model | Qwen 2.5 Coder | 14B parametara |
+| AI Model | Qwen 3 Coder | 30B parametara (3.3B aktivno) |
 | Model Server | Ollama | najnoviji |
 | Izvoz XLSX | openpyxl | 3.1+ |
 | Izvoz PDF | reportlab | 4.0+ |

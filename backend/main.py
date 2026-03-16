@@ -218,10 +218,11 @@ def get_system_prompt(role: str, user_id: int = None) -> str:
 
 REŽIM RADA:
 1. Ako korisnik traži podatke iz baze → odgovori SAMO SQL upitom (bez teksta, bez ```, bez komentara)
-2. Ako korisnik pozdravlja, pita šta možeš, ili postavlja pitanje koje NIJE o podacima → odgovori tekstom na srpskom
+2. Ako korisnik postavlja opšte pitanje, traži savet, razgovara, pozdravlja, ili pita bilo šta što NIJE o podacima iz baze → odgovori tekstom na srpskom
    - Započni odgovor sa "TEKST:" pa onda tvoj odgovor
-   - Predloži 2-3 primera pitanja koja korisnik može postaviti
-3. Ako pitanje nije moguće odgovoriti iz baze → odgovori sa "TEKST:" i objasni šta možeš, sa primerima
+   - Možeš slobodno razgovarati o bilo kojoj temi: studiranje, programiranje, matematika, nauka, saveti, opšta pitanja itd.
+   - Budi prijateljski, informativan i detaljan u odgovorima
+3. Ako pitanje nije moguće odgovoriti iz baze ali JE o podacima → odgovori sa "TEKST:" i objasni šta možeš, sa primerima
 
 PRAVILA ZA SQL:
 - Koristi ISKLJUČIVO tabele i kolone definisane ispod. NE IZMIŠLJAJ tabele ni kolone.
@@ -297,10 +298,31 @@ TEKST: Zdravo! Ja sam univerzitetski AI asistent. Mogu da pretražim bazu podata
 - "Top 5 studenata po proseku"
 
 Pitanje: Šta mogu da te pitam?
-TEKST: Mogu da odgovorim na pitanja o univerzitetskim podacima. Baza sadrži studente, profesore, predmete, ocene i upise. Na primer:
-- "Koje su moje ocene?" (kao student)
-- "Koji studenti su na mom predmetu?" (kao profesor)
-- "Koliko studenata ima na svakom smeru?"
+TEKST: Mogu da odgovorim na pitanja o univerzitetskim podacima, ali i da razgovaramo o bilo čemu! Na primer:
+- "Koje su moje ocene?" (pretraga baze)
+- "Koji studenti su na mom predmetu?" (pretraga baze)
+- "Objasni mi šta je rekurzija" (opšte pitanje)
+- "Kako da se pripremim za ispit?" (savet)
+
+Pitanje: Objasni mi šta je normalizacija baze podataka
+TEKST: Normalizacija baze podataka je proces organizovanja podataka u tabele tako da se smanji redundancija (ponavljanje) i poboljša integritet podataka. Postoji nekoliko normalnih formi:
+
+1. **Prva normalna forma (1NF)** — svako polje sadrži jednu vrednost, bez ponavljajućih grupa
+2. **Druga normalna forma (2NF)** — ispunjava 1NF + svaka ne-ključna kolona zavisi od celokupnog primarnog ključa
+3. **Treća normalna forma (3NF)** — ispunjava 2NF + nema tranzitivnih zavisnosti
+
+Na primer, naša univerzitetska baza koristi normalizaciju — studenti, predmeti i ocene su u odvojenim tabelama umesto u jednoj velikoj tabeli.
+
+Pitanje: Kako da naučim Python?
+TEKST: Evo nekoliko saveta za učenje Pythona:
+
+1. **Počni sa osnovama** — promenljive, tipovi podataka, petlje, uslovi
+2. **Vežbaj svaki dan** — piši male programe i rešavaj zadatke
+3. **Koristi besplatne resurse** — Python dokumentacija, tutorijalse na YouTube-u
+4. **Radi projekte** — napravi kalkulator, to-do aplikaciju, web scraper
+5. **Čitaj tuđi kod** — GitHub je odličan izvor primera
+
+Python je odličan izbor jer je čitljiv i ima ogromnu zajednicu!
 
 ODGOVORI SQL UPITOM ili TEKST: odgovorom:"""
 
@@ -409,6 +431,9 @@ def clean_llm_sql(raw: str) -> str:
     logger.info(f"LLM raw output ({len(original)} chars): {original[:200]}...")
 
     sql = original
+
+    # Strip Qwen 3 <think>...</think> blocks
+    sql = re.sub(r'<think>.*?</think>', '', sql, flags=re.DOTALL).strip()
 
     if '```' in sql:
         import re as _re
@@ -570,7 +595,11 @@ def execute_query(sql: str) -> tuple[list[str], list[list]]:
 
 # ─── Ollama LLM ─────────────────────────────────────────────────────────────
 
-async def query_ollama(prompt: str, system_prompt: str) -> str:
+async def query_ollama(prompt: str, system_prompt: str, max_tokens: int = 512, is_chat: bool = False) -> str:
+    stop_sequences = ["```"]
+    if not is_chat:
+        stop_sequences += ["Objašnjenje:", "Napomena:", "Ovaj upit", "Rezultat:"]
+
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
@@ -583,13 +612,14 @@ async def query_ollama(prompt: str, system_prompt: str) -> str:
                     ],
                     "stream": False,
                     "options": {
-                        "temperature": 0.01,
-                        "num_predict": 512,
+                        "temperature": 0.3 if is_chat else 0.01,
+                        "num_predict": max_tokens,
                         "num_ctx": 4096,
                         "top_p": 0.9,
                         "repeat_penalty": 1.1,
-                        "stop": ["```", "Objašnjenje:", "Napomena:", "Ovo je", "Ovaj upit", "Rezultat:"],
-                    }
+                        "stop": stop_sequences,
+                    },
+                    "think": False,
                 }
             )
             if response.status_code == 200:
@@ -965,8 +995,21 @@ JOIN predmeti p ON o.predmet_id = p.id
 WHERE p.profesor_id = {int(user_id)}
 ORDER BY p.naziv, s.prezime"""
 
-    entity_mentions = sum(1 for pat in [r'student', r'profesor', r'predmet'] if re.search(pat, msg))
+    has_student = bool(re.search(r'student', msg))
+    has_profesor = bool(re.search(r'profesor', msg))
+    has_predmet = bool(re.search(r'predmet', msg))
+    entity_mentions = sum([has_student, has_profesor, has_predmet])
+
     if entity_mentions >= 2:
+        queries = []
+        if has_student:
+            queries.append(("Studenti", "SELECT id, ime, prezime, broj_indeksa, godina_upisa, smer, email FROM studenti ORDER BY prezime"))
+        if has_profesor:
+            queries.append(("Profesori", "SELECT id, ime, prezime, titula, email, kabinet FROM profesori ORDER BY prezime"))
+        if has_predmet:
+            queries.append(("Predmeti", "SELECT id, naziv, sifra, ects, semestar FROM predmeti ORDER BY semestar, naziv"))
+        if queries:
+            return ("MULTI", queries)
         return None
 
     if re.search(r'(svi|sve|prikaži|spisak|lista)\s*(student|studenata|studente)', msg):
@@ -1022,13 +1065,77 @@ async def chat(request: ChatRequest):
         template_sql = match_template(request.message, request.role, request.user_id)
         if template_sql:
             add_step("Prepoznat upit (šablon)...", "completed")
+
+            # Handle multi-query templates (separate tables)
+            if isinstance(template_sql, tuple) and template_sql[0] == "MULTI":
+                multi_queries = template_sql[1]
+                add_step("Izvršavam upite...", "active")
+                multi_results = []
+                all_sql = []
+                for label, q in multi_queries:
+                    cols, rows = execute_query(q)
+                    serialized = []
+                    for row in rows:
+                        sr = []
+                        for val in row:
+                            if hasattr(val, 'isoformat'):
+                                sr.append(val.isoformat())
+                            elif isinstance(val, bytes):
+                                sr.append(val.decode('utf-8', errors='replace'))
+                            else:
+                                sr.append(val)
+                        serialized.append(sr)
+                    multi_results.append({"label": label, "columns": cols, "rows": serialized, "row_count": len(serialized)})
+                    all_sql.append(f"-- {label}\n{q}")
+                steps[-1]["status"] = "completed"
+                add_step("Gotovo", "completed")
+                elapsed = time.time() - start_time
+                metrics["successful_queries"] += 1
+                metrics["total_response_time"] += elapsed
+
+                export_formats = []
+                if EXPORT_AVAILABLE.get("xlsx"):
+                    export_formats.append({"id": "xlsx", "label": "Excel", "color": "#22c55e"})
+                if EXPORT_AVAILABLE.get("pdf"):
+                    export_formats.append({"id": "pdf", "label": "PDF", "color": "#ef4444"})
+                if EXPORT_AVAILABLE.get("docx"):
+                    export_formats.append({"id": "docx", "label": "Word", "color": "#3b82f6"})
+
+                return {
+                    "success": True,
+                    "sql": "\n\n".join(all_sql),
+                    "multi_results": multi_results,
+                    "columns": None,
+                    "rows": None,
+                    "row_count": sum(r["row_count"] for r in multi_results),
+                    "steps": steps,
+                    "response_time": round(elapsed, 2),
+                    "export_formats": export_formats,
+                }
+
             sql = template_sql
             logger.info(f"Template match: {sql[:100]}")
         else:
             add_step("Generišem SQL...", "active")
 
             system_prompt = get_system_prompt(request.role, request.user_id)
-            sql = await query_ollama(request.message, system_prompt)
+            msg_lower = request.message.lower()
+            data_keywords = [
+                'prikaži', 'prikazi', 'spisak', 'lista', 'svi ', 'sve ',
+                'koliko', 'broj', 'top ', 'najbolji',
+            ]
+            question_keywords = [
+                'kako', 'šta je', 'sta je', 'zašto', 'zasto', 'objasni',
+                'pomozi', 'savet', 'preporuči', 'preporuci', 'nauči', 'nauci',
+                'razlika', 'definicija', 'značenje', 'znacenje', 'misliš', 'mislis',
+                'da li', 'možeš li', 'mozes li', 'reci mi', 'kaži mi', 'kazi mi',
+                'pripremi', 'pripremim', 'prijavim', 'položim', 'polozim',
+            ]
+            is_general_chat = any(kw in msg_lower for kw in question_keywords)
+            is_data_query = not is_general_chat and any(kw in msg_lower for kw in data_keywords)
+            max_tokens = 512 if is_data_query else 1024
+            is_chat = not is_data_query
+            sql = await query_ollama(request.message, system_prompt, max_tokens=max_tokens, is_chat=is_chat)
 
             if sql is None:
                 steps[-1]["status"] = "error"
@@ -1044,9 +1151,21 @@ async def chat(request: ChatRequest):
                 }
 
             raw_response = sql.strip()
-            if raw_response.upper().startswith("TEKST:") or raw_response.upper().startswith("GREŠKA:") or raw_response.upper().startswith("GRESKA:"):
-                colon_idx = raw_response.index(':')
-                text_response = raw_response[colon_idx + 1:].strip()
+
+            # Detect text responses: explicit TEKST: prefix, or responses that don't look like SQL
+            upper_raw = raw_response.upper()
+            is_text_response = (
+                upper_raw.startswith("TEKST:") or
+                upper_raw.startswith("GREŠKA:") or
+                upper_raw.startswith("GRESKA:") or
+                (is_chat and not upper_raw.startswith(("SELECT", "WITH")))
+            )
+            if is_text_response:
+                if ':' in raw_response and any(raw_response.upper().startswith(p) for p in ("TEKST:", "GREŠKA:", "GRESKA:")):
+                    colon_idx = raw_response.index(':')
+                    text_response = raw_response[colon_idx + 1:].strip()
+                else:
+                    text_response = raw_response
                 steps[-1]["status"] = "completed"
                 add_step("Tekstualni odgovor", "completed")
                 elapsed = time.time() - start_time
