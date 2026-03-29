@@ -12,101 +12,101 @@ AI model radi isključivo na vašoj lokalnoj mašini koristeći NVIDIA GPU. Nema
 ## Arhitektura sistema
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         KORISNIK (Pregledač)                        │
-│                        http://localhost:5173                        │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │ HTTP / WebSocket
-                               ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    FRONTEND — React 18 + Vite 5                     │
-│                          (Port 5173)                                │
-│                                                                     │
-│  ┌─────────────┐ ┌──────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  Sidebar     │ │ GPU Dashboard│ │   Chat UI  │ │  Pipeline    │  │
-│  │  (uloge,     │ │ (nvidia-smi  │ │ (poruke,   │ │  vizualizac. │  │
-│  │  identitet,  │ │  statistike) │ │  tabele,   │ │  (koraci     │  │
-│  │  predlozi)   │ │              │ │  izvoz)    │ │  obrade)     │  │
-│  └─────────────┘ └──────────────┘ └────────────┘ └──────────────┘  │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               │ Vite Proxy (/api → :8000)
-                               ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                   BACKEND — Python FastAPI + Uvicorn                 │
-│                          (Port 8000)                                │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                     /api/chat Endpoint                       │   │
-│  │                                                              │   │
-│  │  1. Prijem upita + uloga/identitet                           │   │
-│  │  2. Pokušaj prepoznavanja šablona (regex)                    │   │
-│  │  3. Ako nema šablona → pozovi LLM za generisanje SQL-a      │   │
-│  │  4. SQL validacija (syntax + schema + dozvole)               │   │
-│  │  5. Izvršavanje upita nad MySQL bazom                        │   │
-│  │  6. Serijalizacija rezultata + opcije za izvoz               │   │
-│  └──────────┬───────────────────────────────────┬───────────────┘   │
-│             │                                   │                   │
-│             ▼                                   ▼                   │
-│  ┌─────────────────────┐             ┌─────────────────────────┐   │
-│  │   Ollama LLM API    │             │   MySQL (SQLAlchemy)    │   │
-│  │  POST /api/chat     │             │   SELECT samo čitanje   │   │
-│  └──────────┬──────────┘             └────────────┬────────────┘   │
-└─────────────┼─────────────────────────────────────┼────────────────┘
-              │                                     │
-              ▼                                     ▼
-┌──────────────────────────┐         ┌──────────────────────────────┐
-│    OLLAMA SERVER          │         │          MySQL 8              │
-│    (Port 11434)           │         │         (Port 3306)           │
-│                           │         │                               │
-│  Qwen 3 Coder 30B-A3B      │         │  uni_db baza:                 │
-│  (~18 GB, lokalni GPU)       │         │  ├── studenti  (20 zapisa)    │
-│                           │         │  ├── profesori (4 zapisa)     │
-│  ┌─────────────────────┐  │         │  ├── predmeti  (10 zapisa)    │
-│  │   NVIDIA GPU         │  │         │  ├── ocene     (~50 zapisa)   │
-│  │   16 GB+ VRAM        │  │         │  └── upisi     (~60 zapisa)   │
-│  └─────────────────────┘  │         │                               │
-└──────────────────────────┘         └──────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                      KORISNIK (Pregledač)                      │
+│                      http://localhost:5173                    │
+└─────────────────────────────┬─────────────────────────────────┘
+                              │ HTTP / WebSocket
+                              ▼
+┌───────────────────────────────────────────────────────────────┐
+│                  FRONTEND — React 18 + Vite 5                 │
+│                        (Port 5173)                            │
+│                                                               │
+│  ┌────────────┐ ┌─────────────┐ ┌──────────┐ ┌────────────┐  │
+│  │ Sidebar    │ │ GPU         │ │ Chat UI  │ │ Pipeline   │  │
+│  │ (uloge,    │ │ Dashboard   │ │ (poruke, │ │ vizualizac.│  │
+│  │ identitet, │ │ (nvidia-smi │ │ tabele,  │ │ (koraci    │  │
+│  │ predlozi)  │ │ statistike) │ │ izvoz)   │ │ obrade)    │  │
+│  └────────────┘ └─────────────┘ └──────────┘ └────────────┘  │
+└─────────────────────────────┬─────────────────────────────────┘
+                              │ Vite Proxy (/api → :8000)
+                              ▼
+┌───────────────────────────────────────────────────────────────┐
+│                 BACKEND — Python FastAPI + Uvicorn             │
+│                        (Port 8000)                            │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │                   /api/chat Endpoint                    │  │
+│  │                                                         │  │
+│  │  1. Prijem upita + uloga/identitet                      │  │
+│  │  2. Pokušaj prepoznavanja šablona (regex)               │  │
+│  │  3. Ako nema šablona → pozovi LLM za SQL                │  │
+│  │  4. SQL validacija (syntax + schema + dozvole)          │  │
+│  │  5. Izvršavanje upita nad MySQL bazom                   │  │
+│  │  6. Serijalizacija rezultata + opcije za izvoz          │  │
+│  └───────────┬──────────────────────────────┬──────────────┘  │
+│              │                              │                 │
+│              ▼                              ▼                 │
+│  ┌────────────────────┐        ┌────────────────────────┐     │
+│  │ Ollama LLM API     │        │ MySQL (SQLAlchemy)     │     │
+│  │ POST /api/chat     │        │ SELECT samo čitanje    │     │
+│  └─────────┬──────────┘        └───────────┬────────────┘     │
+└────────────┼───────────────────────────────┼──────────────────┘
+             │                               │
+             ▼                               ▼
+┌────────────────────────────┐   ┌──────────────────────────────┐
+│ OLLAMA SERVER              │   │ MySQL 8                      │
+│ (Port 11434)               │   │ (Port 3306)                  │
+│                            │   │                              │
+│ Qwen 3 Coder 30B-A3B      │   │ uni_db baza:                 │
+│ (~18 GB, lokalni GPU)      │   │ ├── studenti  (20 zapisa)    │
+│                            │   │ ├── profesori (4 zapisa)     │
+│ ┌────────────────────────┐ │   │ ├── predmeti  (10 zapisa)    │
+│ │ NVIDIA GPU             │ │   │ ├── ocene     (~50 zapisa)   │
+│ │ 16 GB+ VRAM            │ │   │ └── upisi     (~60 zapisa)   │
+│ └────────────────────────┘ │   │                              │
+└────────────────────────────┘   └──────────────────────────────┘
 ```
 
 ### Tok obrade jednog pitanja
 
 ```
 Korisnik kuca: "Prikaži sve studente"
-        │
-        ▼
-┌─ Frontend šalje POST /api/chat ─────────────────────────────┐
-│  { message: "Prikaži sve studente", role: "admin" }         │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-        ┌──────────────────────┴──────────────────────┐
-        │  1. Provera šablona (regex match)            │
-        │     → "Prikaži sve studente" ✓ prepoznat     │
-        │     → SQL generisan odmah (bez LLM-a)        │
-        └──────────────────────┬──────────────────────┘
-                               │ (ili ako nema šablona ↓)
-        ┌──────────────────────┴──────────────────────┐
-        │  2. Ollama LLM generiše SQL                  │
-        │     System prompt: šema baze + uloga         │
-        │     → Qwen 3 Coder generiše SELECT upit      │
-        └──────────────────────┬──────────────────────┘
-                               │
-        ┌──────────────────────┴──────────────────────┐
-        │  3. Trostruka validacija                     │
-        │     ✓ Syntax check (samo SELECT)             │
-        │     ✓ Schema check (tabele + kolone postoje) │
-        │     ✓ Dozvole (uloga ima pristup tabelama)   │
-        └──────────────────────┬──────────────────────┘
-                               │
-        ┌──────────────────────┴──────────────────────┐
-        │  4. MySQL izvršava upit                      │
-        │     SELECT id, ime, prezime, ... FROM studenti│
-        │     → 20 zapisa vraćeno                      │
-        └──────────────────────┬──────────────────────┘
-                               │
-        ┌──────────────────────┴──────────────────────┐
-        │  5. Frontend prikazuje tabelu + izvoz dugmad │
-        │     Excel | PDF | Word                       │
-        └─────────────────────────────────────────────┘
+       │
+       ▼
+┌─ Frontend šalje POST /api/chat ────────────────────────┐
+│  { message: "Prikaži sve studente", role: "admin" }    │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+    ┌──────────────────────┴─────────────────────────┐
+    │  1. Provera šablona (regex match)               │
+    │     → "Prikaži sve studente" prepoznat          │
+    │     → SQL generisan odmah (bez LLM-a)           │
+    └──────────────────────┬─────────────────────────┘
+                           │ (ili ako nema šablona ↓)
+    ┌──────────────────────┴─────────────────────────┐
+    │  2. Ollama LLM generiše SQL                    │
+    │     System prompt: šema baze + uloga            │
+    │     → Qwen 3 Coder generiše SELECT upit        │
+    └──────────────────────┬─────────────────────────┘
+                           │
+    ┌──────────────────────┴─────────────────────────┐
+    │  3. Trostruka validacija                        │
+    │     ✓ Syntax check (samo SELECT)                │
+    │     ✓ Schema check (tabele + kolone postoje)    │
+    │     ✓ Dozvole (uloga ima pristup tabelama)      │
+    └──────────────────────┬─────────────────────────┘
+                           │
+    ┌──────────────────────┴─────────────────────────┐
+    │  4. MySQL izvršava upit                         │
+    │     SELECT id, ime, prezime, ... FROM studenti  │
+    │     → 20 zapisa vraćeno                         │
+    └──────────────────────┬─────────────────────────┘
+                           │
+    ┌──────────────────────┴─────────────────────────┐
+    │  5. Frontend prikazuje tabelu + izvoz dugmad    │
+    │     Excel | PDF | Word                          │
+    └────────────────────────────────────────────────┘
 ```
 
 
