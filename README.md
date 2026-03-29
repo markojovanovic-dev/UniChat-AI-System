@@ -22,17 +22,17 @@ The AI model runs entirely on your local machine using your NVIDIA GPU. No cloud
 │                    FRONTEND — React 18 + Vite 5                     │
 │                          (Port 5173)                                │
 │                                                                     │
-│  ┌─────────────┐ ┌──────────────┐ ┌────────────┐ ┌──────────────┐  │
+│  ┌─────────────┐ ┌──────────────┐ ┌────────────┐ ┌──────────────┐   │
 │  │  Sidebar     │ │ GPU Dashboard│ │   Chat UI  │ │  Pipeline    │  │
 │  │  (roles,     │ │ (nvidia-smi  │ │ (messages, │ │  visualizer  │  │
 │  │  identity,   │ │  stats)      │ │  tables,   │ │  (processing │  │
 │  │  suggestions)│ │              │ │  export)   │ │  steps)      │  │
-│  └─────────────┘ └──────────────┘ └────────────┘ └──────────────┘  │
+│  └─────────────┘ └──────────────┘ └────────────┘ └──────────────┘   │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ Vite Proxy (/api → :8000)
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   BACKEND — Python FastAPI + Uvicorn                 │
+│                   BACKEND — Python FastAPI + Uvicorn                │
 │                          (Port 8000)                                │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
@@ -47,25 +47,25 @@ The AI model runs entirely on your local machine using your NVIDIA GPU. No cloud
 │  └──────────┬───────────────────────────────────┬───────────────┘   │
 │             │                                   │                   │
 │             ▼                                   ▼                   │
-│  ┌─────────────────────┐             ┌─────────────────────────┐   │
-│  │   Ollama LLM API    │             │   MySQL (SQLAlchemy)    │   │
-│  │  POST /api/chat     │             │   Read-only queries     │   │
-│  └──────────┬──────────┘             └────────────┬────────────┘   │
-└─────────────┼─────────────────────────────────────┼────────────────┘
+│  ┌─────────────────────┐             ┌─────────────────────────┐    │
+│  │   Ollama LLM API    │             │   MySQL (SQLAlchemy)    │    │
+│  │  POST /api/chat     │             │   Read-only queries     │    │
+│  └──────────┬──────────┘             └────────────┬────────────┘    │
+└─────────────┼─────────────────────────────────────┼──────────────── ┘
               │                                     │
               ▼                                     ▼
-┌──────────────────────────┐         ┌──────────────────────────────┐
-│    OLLAMA SERVER          │         │          MySQL 8              │
-│    (Port 11434)           │         │         (Port 3306)           │
-│                           │         │                               │
-│  Qwen 3 Coder 30B-A3B       │         │  uni_db database:             │
-│  (~18 GB, local GPU)         │         │  ├── studenti  (20 records)   │
-│                           │         │  ├── profesori (4 records)    │
-│  ┌─────────────────────┐  │         │  ├── predmeti  (10 records)   │
-│  │   NVIDIA GPU         │  │         │  ├── ocene     (~50 records)  │
-│  │   16 GB+ VRAM        │  │         │  └── upisi     (~60 records)  │
-│  └─────────────────────┘  │         │                               │
-└──────────────────────────┘         └──────────────────────────────┘
+┌──────────────────────────┐         ┌─────────────────────────────  ┐
+│    OLLAMA SERVER         │        │          MySQL 8               │
+│    (Port 11434)          │        │         (Port 3306)            │
+│                          │        │                                │
+│  Qwen 3 Coder 30B-A3B    │        |   │  uni_db database:          │
+│  (~18 GB, local GPU)     │        │     ├── studenti  (20 records) │
+│                          │        │  ├── profesori (4 records)     │
+│  ┌─────────────────────┐ │        │  ├── predmeti  (10 records)    │
+│  │   NVIDIA GPU        │ │        |  ├── ocene     (~50 records)   │
+│  │   16 GB+ VRAM       │ │        |  └── upisi     (~60 records)   │
+│  └─────────────────────┘ │        │                                │
+└──────────────────────────┘        └ ────────────────────────────── ┘
 ```
 
 ### Query Processing Flow
@@ -79,22 +79,22 @@ User types: "Prikaži sve studente"
 └──────────────────────────────┬──────────────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
-        │  1. Template matching (regex)                │
-        │     → "Prikaži sve studente" ✓ matched       │
-        │     → SQL generated instantly (no LLM)       │
+        │  1. Template matching (regex)               │
+        │     → "Prikaži sve studente" ✓ matched      │
+        │     → SQL generated instantly (no LLM)      │
         └──────────────────────┬──────────────────────┘
                                │ (or if no template ↓)
         ┌──────────────────────┴──────────────────────┐
-        │  2. Ollama LLM generates SQL                 │
-        │     System prompt: DB schema + role context   │
-        │     → Qwen 3 Coder generates SELECT query      │
+        │  2. Ollama LLM generates SQL                │
+        │     System prompt: DB schema + role context │
+        │     → Qwen 3 Coder generates SELECT query   │
         └──────────────────────┬──────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
-        │  3. Triple validation                        │
-        │     ✓ Syntax check (SELECT only)             │
-        │     ✓ Schema check (tables + columns exist)  │
-        │     ✓ Permission check (role has access)     │
+        │  3. Triple validation                       │
+        │     ✓ Syntax check (SELECT only)            │
+        │     ✓ Schema check (tables + columns exist) │
+        │     ✓ Permission check (role has access)    │
         └──────────────────────┬──────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
@@ -104,8 +104,8 @@ User types: "Prikaži sve studente"
         └──────────────────────┬──────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
-        │  5. Frontend renders table + export buttons  │
-        │     Excel | PDF | Word                       │
+        │  5. Frontend renders table + export buttons │
+        │     Excel | PDF | Word                      │
         └─────────────────────────────────────────────┘
 ```
 
