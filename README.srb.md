@@ -87,7 +87,7 @@ Korisnik kuca: "Prikaži sve studente"
         ┌──────────────────────┴──────────────────────┐
         │  2. Ollama LLM generiše SQL                  │
         │     System prompt: šema baze + uloga         │
-        │     → Qwen 2.5 Coder generiše SELECT upit   │
+        │     → Qwen 3 Coder generiše SELECT upit      │
         └──────────────────────┬──────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
@@ -214,7 +214,7 @@ Trebalo bi da vidite nešto poput:
 ### Korak 2: Pokrenite install skriptu
 
 ```bash
-git clone <repo-url> uni-chat
+git clone https://github.com/markojovanovic-dev/UniChat-AI-System.git uni-chat
 cd uni-chat
 chmod +x install.sh start.sh
 ./install.sh

@@ -87,7 +87,7 @@ User types: "Prikaži sve studente"
         ┌──────────────────────┴──────────────────────┐
         │  2. Ollama LLM generates SQL                 │
         │     System prompt: DB schema + role context   │
-        │     → Qwen 2.5 Coder generates SELECT query  │
+        │     → Qwen 3 Coder generates SELECT query      │
         └──────────────────────┬──────────────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
@@ -214,7 +214,7 @@ You should see output like:
 ### Step 2: Run the Install Script
 
 ```bash
-git clone <repo-url> uni-chat
+git clone https://github.com/markojovanovic-dev/UniChat-AI-System.git uni-chat
 cd uni-chat
 chmod +x install.sh start.sh
 ./install.sh
